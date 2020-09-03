@@ -219,7 +219,7 @@ def makesamplelist(channel,good_samples,cap):
     return(num_samples,sample_list)
 
 def main():
-    station='4'
+    station='5'
     outfile_timing = open("araAtriStation"+station+"SampleTiming.txt","w")
     outfile_epsilon = open("araAtriStation"+station+"Epsilon.txt","w")
     outfile_v = open("araAtriStation"+station+"adcToVoltsConv.txt","w")

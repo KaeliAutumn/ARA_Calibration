@@ -2,121 +2,27 @@ from __future__ import print_function
 from ROOT import TCanvas, TGraph
 from ROOT import gROOT
 import ROOT
-import os
 import matplotlib.pyplot as plt
-from scipy import signal,stats
-from scipy.fftpack import rfft, irfft, fftfreq
-from scipy.signal import iirfilter,lfilter,butter
-from scipy import signal
-from scipy.fftpack import fft
+from scipy.fftpack import rfft, irfft, fftfreq,fft
 from scipy import optimize
 from scipy.misc import derivative
 import numpy as np
 import sys
 import math
+#sys.path.append('../')
+#import global_constants
 from math import sin
-from array import array
 from pynverse import inversefunc
-from AutomaticLoadData import LoadDataFromWeb
+from AutomaticLoadData import LoadSineWaveData
+import matplotlib
 
+matplotlib.rcParams.update({'font.size': 26})
+font = {'weight' : 'bold',
+        'size'   : 18}
+matplotlib.rc('font', **font)
 
 def reject_outliers(data, m=2):
     return data[abs(data - np.mean(data)) < m * np.std(data)]
-
-def partial_derivative(func, var=0, point=[]):
-    args = point[:]
-    def wraps(x):
-        args[var] = x
-        return func(*args)
-    return derivative(wraps, point[var], dx = 1e-6)
-
-def CountNumFiles(directory,channel,files):
-    num_data=0
-    for i in range(0,len(files)):
-        exists = os.path.isfile(directory+'t_cal_'+files[i]+'_'+channel+'.npy')
-        if exists:
-            num_data=num_data+1
-    return(num_data)
-
-
-def FileReader2(MyFile,graphname,samples):
-    gr1 = MyFile.Get(graphname)
-
-    t_buff = gr1.GetX()
-    v_buff = gr1.GetY()
-    n = gr1.GetN()
-
-    t_buff.SetSize(n)
-    v_buff.SetSize(n)
-
-    v = np.array(v_buff,copy=True)
-    t = np.array(t_buff,copy=True)
-    num = len(v)-samples
-    v=v[num:]
-    t=t[num:]
-    #print(v[-1])
-    return(t,v)
-
-
-def PedestalFix2(v,channel):
-    ped_vals = np.load('pedestal_vals/ARA5_ch'+str(channel)+'_pedestal.npy')
-    num_samples = len(v)
-    for b in range(0,num_samples):
-        v[b]=v[b]-ped_vals[b%128]
-    return(v)
-
-def update_tcal(tcal,wrap,total_samples):
-
-    tcal_all = tcal
-    for i in range(1,total_samples/128):
-        tcal_all = np.append(tcal_all,tcal+wrap+tcal_all[-1])
-    return(tcal_all)
-
-def average_tcals(directory,channel,files):
-    num_data = CountNumFiles(directory,channel,files)
-    t_cals = np.zeros([num_data,128])
-
-    for i in range(0,num_data):
-        t_cals[i,:] = np.load(directory+'t_cal_'+files[i]+'_'+str(channel)+'.npy')
-
-    #find spacings
-    spacings = np.zeros(127)
-    new_tcal = np.zeros(128)
-    for i in range(0,len(spacings)):
-        #spacings[i]=np.mean(t_cals[:,i+1]-t_cals[:,i])
-        new_tcal[i]=np.mean(t_cals[:,i])
-    print(spacings)
-    print('new t_cal is', new_tcal)
-    np.save('calibrated_times/ch_'+channel+'.npy',new_tcal)
-
-
-def invertedFit2(params,t_o,v):
-    k = params[0]
-    phi=params[1]
-    A = params[2]
-
-    #print('begin')
-    T= 1/(k)
-    #print('period is', T)
-
-    t_diff = 100.0
-    #print('original t is',t_o)
-    for j in range(-2,11):
-        t_on = (1.0/(2.0*np.pi*k))*(np.arcsin(v/A)+phi+2.0*np.pi*j)
-        t_off = (1.0/(2.0*np.pi*k))*(np.pi-np.arcsin(v/A)+phi+2.0*np.pi*j)
-        t_on_diff = np.abs(t_on-t_o)
-        t_off_diff = np.abs(t_off-t_o)
-        #print(t_on_diff,t_off_diff)
-        if(t_on_diff<=t_off_diff and t_on_diff<t_diff):
-            t_diff=t_on_diff
-            t_best=t_on
-        if(t_off_diff<t_on_diff and t_off_diff<t_diff):
-            t_diff=t_off_diff
-            t_best=t_off
-        #print(t_best-t_o)
-    return(t_best-t_o)
-
-
 
 
 def invertedFit(params,tval,vval):
@@ -166,62 +72,9 @@ def invertedFit(params,tval,vval):
 
     return(t_close-tval)#used to be t_close-tval
 
-def FileReader(MyFile,graphname,length,block_type):
-    gr1 = MyFile.Get(graphname)
-
-    t_buff = gr1.GetX()
-    v_buff = gr1.GetY()
-    n = gr1.GetN()
-
-    t_buff.SetSize(n)
-    v_buff.SetSize(n)
-
-    v = np.array(v_buff,copy=True)
-    t = np.array(t_buff,copy=True)
-    #print(t[-1])
-    cut = len(v)-length
-
-    #print('cut is', cut)
-    if((block_type+1)%2==0):#if true starting block is even, after cutting out first block
-        v=v[cut/2:(len(v)-cut/2)]
-        t=t[:(len(t)-cut)]
-    else:
-        v=v[cut:]
-        t=t[:(len(t)-cut)]
-    #print(len(v),len(t))
-    return(t,v)
-
-def sort_vals(t,v):
-    args = t.argsort()
-    t=t[args]
-    v=v[args]
-    return(t,v)
-
-def PedestalFix(v,channel,block_num,ped_vals):
-    block_num = int(block_num)
-    #ped_vals = np.load('pedestal_vals/ARA5_ch'+str(channel)+'_pedestal.npy')
-    my_ped_vals = np.zeros(len(v))
-    counter = 0
-    if(block_num%2==0):
-        block_num=block_num+2
-    if(block_num%2==1):
-        block_num=block_num+1
-    for i in range(0,len(v)/64):
-        #print(ped_vals[(block_num+2)%512,:])
-        my_ped_vals[counter:counter+64]=ped_vals[(block_num)%512,:]
-        counter = counter+64
-        block_num=(block_num+1)%512
-    #print('my pedestal values are:',my_ped_vals)
-    v_new = v-my_ped_vals
-    #print('mean of voltage is', np.mean(v_new))
-    #v_new = v_new-np.mean(v_new)
-    return(v_new)
 
 def SineFunc(t,k,phi,A): #time, freq, offset, amplitude
     return A*np.sin(2*np.pi*k*t-phi)
-
-def SineFunc2(t,phi,A): #time, freq, offset, amplitude
-    return A*np.sin(2*np.pi*0.353*t-phi)
 
 def SineFit(t,v,freq):
     params, params_covariance = optimize.curve_fit(SineFunc,t,v,p0=[freq,np.pi/2.0,350])#,bounds=([-np.inf,-np.inf,200],[np.inf,np.inf,np.inf]))#freq,offset,amplitude,voff
@@ -233,15 +86,6 @@ def SineFit(t,v,freq):
         params[1]=params[1]+np.pi*2.0
     return(params)
 
-def SineFit2(t,v,freq,amp):
-    params, params_covariance = optimize.curve_fit(lambda t,phi: SineFunc(t,freq,phi,amp),t,v,p0=[np.pi/2.0])
-    #print(params)
-
-    while(params[0]<0):
-        params[0]=params[0]+np.pi*2.0
-
-    return(params)
-
 
 def HistPlotter2D(sample,jitter):
     sample_even=[]
@@ -249,14 +93,21 @@ def HistPlotter2D(sample,jitter):
     sample_odd=[]
     jitter_odd = []
 
+    sample_1d = 4
+    jitter_1d = []
+
     for j in range(0,len(sample)):
+        if(sample[j]==sample_1d):
+            jitter_1d.append(jitter[j])
+
         if(sample[j]%2==0):#if even
             sample_even.append(sample[j])
             jitter_even.append(jitter[j])
         else:
             sample_odd.append(sample[j])
             jitter_odd.append(jitter[j])
-
+    #print(sample_even)
+    #print(jitter_even)
     plt.figure(4,facecolor='w')
     plt.hist2d(sample_even,jitter_even,bins=(128,128),cmap=plt.cm.jet,range=np.array([(0.0,128.0),(-1.0,1.0)]))
     plt.title('Even Samples')
@@ -265,18 +116,46 @@ def HistPlotter2D(sample,jitter):
     plt.hist2d(sample_odd,jitter_odd,bins=(128,128),cmap=plt.cm.jet,range=np.array([(0.0,128.0),(-1.0,1.0)]))
     plt.title('Odd Samples')
 
+    plt.figure(3)
+    plt.hist(jitter_1d,bins=25)
+    plt.xlabel('Jitter (ns)')
+    plt.xlim([-1.0,1.0])
+
 
     plt.show()
     return()
 
+def AddOffsets2(t,v,freq,odds):
+    #Goals:
+    #Fit even blocks to sine waves
+    #Fit odd blocks to sine waves
+    #compare phase differences between two transitions
+    print(odds)
+    e_freq = []
+    o_freq = []
+    #loop over all events:
+    for j in range(0,len(v[:,0])):
+        blocks_per_event = int(len(v[0,:])/64)
+        #print('total blocks:', blocks_per_event)
+        for i in range(0,blocks_per_event):
+            #print(i*64,i*64+64,15*64)
+            params = SineFit(t[1:64:2],v[j,i*64:i*64+64:2],freq)
+
+            if i%2==0:#even block
+                e_freq.append(params[0])
+            else:
+                o_freq.append(params[0])
+            #print(params)
+    histogram([e_freq,o_freq],'Frequency')
+
+
+    t_scaled_e1 = t[:64]*np.mean(e_freq)/freq
+    t_scaled_o = t[64:128]*np.mean(o_freq)/freq
+    t_scaled_e2 = t[128:192]*np.mean(e_freq)/freq
+
 def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o):
     print(len(v[0,:]))
-    #time_1b = np.linspace(0.0,19.375,32)
-    #time_1b = t[odds[:32]]
-    #time_1b_all = np.linspace(0.0,19.6875,64)
-    #time_1b_all = t[:64]
 
-    #print(time_1b)
     e_freq = []
     o_freq = []
     for j in range(0,len(v[:,0])):
@@ -288,20 +167,6 @@ def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o):
             else:
                 o_freq.append(params[0])
             val = val+32
-
-    #Scale even and odd blocks based on frequencies
-    #o_freq = reject_outliers(np.asarray(o_freq))
-    #e_freq = reject_outliers(np.asarray(e_freq))
-
-    #histogram([o_freq,e_freq],'Frequency (GHz)')
-
-    #even_time = time_1b_all*np.mean(e_freq)/freq
-    #odd_time = time_1b_all*np.mean(o_freq)/freq
-    #eo_time = np.concatenate((even_time,odd_time+even_time[-1]))
-    #oe_time = np.concatenate((odd_time,even_time+odd_time[-1]))
-    #Fit Again and find offset
-    #print(eo_time)
-    #print(oe_time)
 
     t_scaled_e1 = t[:64]*np.mean(e_freq)/freq
     t_scaled_o = t[64:128]*np.mean(o_freq)/freq
@@ -350,6 +215,7 @@ def AddOffsets(t,v,freq,odds,old_mean_o2e,old_mean_e2o):
     #Scale time so that offset is taken into account
     e2o_mean = np.abs(np.mean(e2o_diff)+old_mean_e2o)
     o2e_mean = np.abs(np.mean(o2e_diff)+old_mean_o2e)
+    print(e2o_mean,o2e_mean,old_mean_e2o,old_mean_o2e)
     if(e2o_mean>1.0):
         e2o_mean=0.31
     if(o2e_mean>1.0):
@@ -391,11 +257,15 @@ def histogram(vals,string):
 
 def SinePlotter(t,v,params,sample):
     plt.figure(10)
-    plt.scatter(t,v[sample,:])
+    plt.scatter(t,v[sample,:],label='Data')
     #print(t)
     #print(v[sample,:])
-    t_up = np.linspace(t[0],t[-1],100)
-    plt.plot(t_up,SineFunc(t_up,params[sample,0],params[sample,1],params[sample,2]))
+    t_up = np.linspace(t[0],t[-1],len(t)*50)
+    plt.plot(t_up,SineFunc(t_up,params[sample,0],params[sample,1],params[sample,2]),label='Best Fit: '+str(np.round(params[sample,0]*1000,3))+' MHz')
+    plt.grid()
+    #plt.legend()
+    plt.xlabel('Time (ns)')
+    plt.ylabel('ADC')
     plt.show()
 
 def SlopeFinder(t,v,sample):
@@ -408,94 +278,76 @@ def SlopeFinder(t,v,sample):
 
 def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
     wf_len = 896
+    
+    pedFile = '/home/kahughes/PA_Analysis/data/pedFiles/pedFile_'+str(rootfile)+'.dat'
 
-    all_times, volt,blocks = LoadDataFromWeb(station,rootfile,"0529","2018",int(channel),wf_len,0,1,0,0,1)
-    time = all_times[0]-all_times[0][0]
+    print(pedFile)
+
+    all_times,volt,blocks = LoadSineWaveData(station,rootfile,pedFile,channel,kPed=1,kTime=0,kVolt=0)
+
+    time = all_times[0]-all_times[0][0] #uncalibrated time
+
     print('number of events is', np.shape(volt))
     num_blocks=len(volt[:,0])
 
-    #file_name = ['data/processed/calibration_data_fulltest_elChan'+channel+'_run'+rootfile+'.root']
-    #block_list =np.loadtxt('data/processed/block_data_elChan'+channel+'_run'+rootfile+'.txt')
-    #num_blocks = 2000
-
-
-
-    #volt = np.zeros([num_blocks,wf_len])
-    #time = np.zeros(wf_len)
     best_params = np.zeros([num_blocks,4])
 
-    odds = np.linspace(1,wf_len-1,wf_len/2,dtype=int)
-    evens = np.linspace(0,wf_len-2,wf_len/2,dtype=int)
-    #print('length of odds and evens are', odds,evens)
+    odds = np.linspace(1,wf_len-1,int(wf_len/2),dtype=int)
+    evens = np.linspace(0,wf_len-2,int(wf_len/2),dtype=int)
 
     odd_params=np.zeros([num_blocks,3])
-    even_params=np.zeros([num_blocks,3])
-    odd_params2 = np.zeros([num_blocks,3])
 
-    odd_half = np.linspace(1,63,32,dtype=int)
-    even_half= np.linspace(0,62,32,dtype=int)
-
-    odd_half2 = np.linspace(65,127,32,dtype=int)
-
-    jitter_avg = np.zeros(128)
     t_cal = np.zeros(128)
 
-    #load all 128 samples into arrays
-    best_blocks = []
-    best_freqs = []
-    jitter_total = []
-    odd_diffs = []
-    line_diffs = []
-
-    #print(odd_half)
-    #print(odd_half2)
-    """
-    print('Loading ROOT File...')
-    MyFile = ROOT.TFile.Open(file_name[0])
-    ped_vals = np.load('best_pedestals/ch_'+channel+'_ped.npy')
-    for i in range(0,num_blocks):
-        time[evens],volt[i,evens]=FileReader(MyFile,'gr_E_'+str(i),wf_len/2,block_list[i])
-        time[odds],volt[i,odds]=FileReader(MyFile,'gr_O_'+str(i),wf_len/2,block_list[i])
-
-        volt[i,:]=PedestalFix(volt[i,:],channel,block_list[i],ped_vals)#remove for actual data, this is just for noise data
-        #plt.figure(0)
-        #plt.plot(time,volt[i,:])
-        #plt.show()
-    """
-
-
-
-
-
-
-    spacing = 0.625
 
     if(t_cal[5]==0.0):
         print('clearing out old t_cal')
         t_cal=time[:128]
         print(t_cal)
 
-    t_cal_full = time
-    #print('t_cal before is', t_cal_full)
+    #set calibrated time array to be equal to uncalibrated time array, so length is the same
 
+    t_cal_full = time 
+    #print('t_cal before is', t_cal_full)
+    #print(np.shape(t_cal_full),np.shape(volt))
     odd_mean= 0.0
     even_mean= 0.0
-    for l in range(0,5):
+    for l in range(0,4):
         print('loop number ', l)
-
+        #print(np.shape(t_cal_full),np.shape(volt))
         #First fix offsets between blocks, as that can be larger than the channel to channel fixes.
-        if l==0:
-            t_cal_full,odd_mean,even_mean=AddOffsets(t_cal_full,volt,freq,odds,odd_mean,even_mean)
+        #if l==0:
+        #    t_cal_full,odd_mean,even_mean=AddOffsets(t_cal_full,volt,freq,odds,odd_mean,even_mean)
+            #t_cal_full,odd_mean,even_mean=AddOffsets2(t_cal_full,volt,freq,odds)
         #Fit each waveform to a sine wave
+        volt=volt[:,:len(t_cal_full)]
+        #print(np.shape(t_cal_full),np.shape(volt))
 
-        #plt.figure(0)
-        #plt.plot(t_cal_full[odds],volt[0,odds])
-        #plt.show()
+
+        #STEP ONE: For each event, calculate the best sine wave fit. Then remove outlier frequencies and calculate the mean frequency.
+        #Since we know the expected frequency from the lab data, we can then correct the overall time step.
 
         for i in range(0,num_blocks):
             odd_params[i,:]=SineFit(t_cal_full[odds],volt[i,odds],freq)
+            #SinePlotter(t_cal_full,volt,odd_params,i)
 
-        #histogram([odd_params[:,0],odd_params[:,0]],'')
+        #plt.scatter(t_cal_full[odds],volt[i,odds])
+        #t_up = np.linspace(t_cal_full[0],t_cal_full[-1],500)
+        #plt.plot(t_up,SineFunc(t_up,odd_params[i,0],odd_params[i,1],odd_params[i,2]))
+        #plt.show()
+
+        """
+        if(l>-1):
+            plt.hist(odd_params[:,0]*1000,bins=25)
+            #plt.grid()
+            plt.axvline(np.mean(odd_params[:,0])*1000,color='red',label='Mean')
+            plt.axvline(218.0, color='black',label='Input Frequency')
+            plt.xlabel('Best Fit Frequency (MHz)')
+            plt.legend()
+            plt.show()
+        
+            SinePlotter(t_cal_full,volt,odd_params,4)
+        """
         freq_no_outliers = reject_outliers(np.asarray(odd_params[:,0]))
         mean_freq = np.mean(freq_no_outliers)
         print('mean frequency is', mean_freq)
@@ -504,10 +356,18 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
         #Scale timing to reflect true frequency
         t_cal_full=t_cal_full*mean_freq/freq
 
+        print('Fitting to sine:')
         #Re-fit using new time
         for i in range(0,num_blocks):
-            odd_params[i,:]=SineFit(t_cal_full[odds],volt[i,odds],freq)
 
+            odd_params[i,:]=SineFit(t_cal_full[odds],volt[i,odds],freq)
+            #SinePlotter(t_cal_full,volt,odd_params,i)
+            #print('here')
+            #print(l)
+            #if(l>0):
+                #print("here!")
+                #SinePlotter(t_cal_full,volt,odd_params,i)
+                #plt.show()
 
         t_cal = t_cal_full[:128]
 
@@ -517,10 +377,17 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
         jitter_slope = []
         new_spacing = np.zeros(128) #spacing between 0 and 1, 1 and 2, etc.
         #Go through each sample and correct based on fit
+
+        if(int(channel)==24):
+            cutval = 5.0
+        else:
+            cutval = 30.0
+
+        print('here is the slow part')
         for k in range(0,896):
             counter = 0
             for i in range(0,num_blocks):
-                if(np.abs(volt[i,k])<30.0 and (freq-odd_params[i,0])<0.002):# and np.abs(odd_params[i,2]>200)):
+                if(np.abs(volt[i,k])<cutval and (freq-odd_params[i,0])<0.002):# and np.abs(odd_params[i,2]>200)):
                     try:
                         invert_fit = invertedFit(odd_params[i,:],t_cal_full[k],volt[i,k])
                         jitter_array.append(invert_fit)
@@ -539,6 +406,8 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
         new_spacing[0]=new_spacing[0]/6.0
         #print('spacing is', new_spacing)
 
+
+
         for i in range(0,896):
             if(i==0):
                 t_cal_full[i]=0.0
@@ -550,8 +419,8 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
 
         t_cal=t_cal_full[:128]
 
-
-        #SinePlotter(time[odds],volt[:,odds],odd_params,5)
+        #if(l>0):
+        #    SinePlotter(time[odds],volt[:,odds],odd_params,5)
 
 
         """
@@ -563,14 +432,14 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
 
 
         if(l<1):
-            np.save('ARA'+str(station)+'_cal_files/samples_'+rootfile+'_'+channel+'first.npy',np.asarray(sample_array))
-            np.save('ARA'+str(station)+'_cal_files/jitter_'+rootfile+'_'+channel+'first.npy',np.asarray(jitter_array))
-
-        #HistPlotter2D(sample_array,jitter_array)
-    print('final t_cal is', t_cal_full)
-    np.save('ARA'+str(station)+'_cal_files/t_cal_'+rootfile+'_'+channel+'.npy',t_cal_full)
-    np.save('ARA'+str(station)+'_cal_files/samples_'+rootfile+'_'+channel+'final.npy',np.asarray(sample_array))
-    np.save('ARA'+str(station)+'_cal_files/jitter_'+rootfile+'_'+channel+'final.npy',np.asarray(jitter_array))
+            np.save('data/ARA'+str(station)+'_cal_files/samples_'+rootfile+'_'+channel+'first.npy',np.asarray(sample_array))
+            np.save('data/ARA'+str(station)+'_cal_files/jitter_'+rootfile+'_'+channel+'first.npy',np.asarray(jitter_array))
+        #if(l>-1):
+    HistPlotter2D(sample_array,jitter_array)
+    #print('final t_cal is', t_cal_full)
+    np.save('data/ARA'+str(station)+'_cal_files/t_cal_'+channel+'.npy',t_cal_full)
+    np.save('data/ARA'+str(station)+'_cal_files/samples_'+channel+'final.npy',np.asarray(sample_array))
+    np.save('data/ARA'+str(station)+'_cal_files/jitter_'+channel+'final.npy',np.asarray(jitter_array))
     #HistPlotter2D(sample_array,jitter_array)
     #print('t_cal is', t_cal)
     return(t_cal)
@@ -582,15 +451,6 @@ def main():
     channel = str(sys.argv[1])#'0'
     station = str(sys.argv[2])
 
-
-
-
-    #rootfile = str(sys.argv[1])#'1403'
-
-    #freq = float(sys.argv[3])#0.353
-
-    #rootfiles = ['1422','1421','1420','1419']
-    #freqs = [0.218,0.218,0.218,0.218]
 
     N1 = [0,3,8,11,16,19,24,27]
     N2 = [1,2,9,10,17,18,25,26]
@@ -611,17 +471,21 @@ def main():
             rootfiles = ['2840','2841','2842','2843']
         if(int(channel)in N_special):
             rootfiles = ['2855','2856']
-    #rootfiles = ['1422']
-    #rootfiles = ['1410']
-    """
-    sample_final=np.load('ARA'+str(station)+'_cal_files/samples_'+rootfile+'_'+channel+'final.npy')
-    jitter_final = np.load('ARA'+str(station)+'_cal_files/jitter_'+rootfile+'_'+channel+'final.npy')
+    #rootfiles = ['1402']
+    #rootfile = '1404'
+    #if(int(channel)==24):
+    #    rootfiles = ['1411']
 
-    sample_first=np.load('ARA'+str(station)+'_cal_files/samples_'+rootfile+'_'+channel+'first.npy')
-    jitter_first = np.load('ARA'+str(station)+'_cal_files/jitter_'+rootfile+'_'+channel+'first.npy')
-    HistPlotter2D(sample_first,jitter_first)
-    HistPlotter2D(sample_final,jitter_final)
-    """
+
+
+    #sample_final=np.load('ARA'+str(station)+'_cal_files/samples_'+rootfile+'_'+channel+'final.npy')
+    #jitter_final = np.load('ARA'+str(station)+'_cal_files/jitter_'+rootfile+'_'+channel+'final.npy')
+
+    #sample_first=np.load('ARA'+str(station)+'_cal_files/samples_'+rootfile+'_'+channel+'first.npy')
+    #jitter_first = np.load('ARA'+str(station)+'_cal_files/jitter_'+rootfile+'_'+channel+'first.npy')
+    #HistPlotter2D(sample_first,jitter_first)
+    #HistPlotter2D(sample_final,jitter_final)
+
 
     freqs = [0.218,0.353,0.521,0.702]
 
@@ -632,7 +496,7 @@ def main():
     #HistPlotter2D(samples,jitter)
     #CorrectTimingSample(rootfiles[0],channel,freqs[0],cal_t,station)
 
-    for a in range(0,4):
+    for a in range(0,1):
         #exists = os.path.isfile('ARA'+str(station)+'_cal_files/jitter_'+rootfiles[a]+'_'+channel+'final.npy')
         #if(exists):
         #    print('file exists!')
