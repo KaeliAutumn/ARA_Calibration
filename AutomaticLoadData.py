@@ -159,7 +159,7 @@ def Calibrator(station,time,volt,block_number,channel,length,ped_values,kPed,kTi
 
     if(int(channel) not in [0,1,2,3,8,9,10,11,16,17,18,19,24,25,26,27]):
         channel='18'
-
+    #print('calibrating')
     cal_file = 'data/ARA'+station+'_cal_files'
     #cal_file = 'cal_files8'
 
@@ -255,6 +255,7 @@ def Calibrator(station,time,volt,block_number,channel,length,ped_values,kPed,kTi
 
     #plt.plot(time,volt)
     #plt.show()
+    #print('done')
     return(time,volt,block_number)
 
 def RemoveBackwardsSamples(tcal,v):
@@ -295,12 +296,13 @@ def RemoveBackwardsSamples(tcal,v):
 
 def LoadSineWaveData(station,run,pedFile,channel,kPed,kTime,kVolt):
     
-    data_directory = "/project2/avieregg/ARA_cal_data/data/root/"
+    #data_directory = "/project2/avieregg/ARA_cal_data/data/root/"
+    data_directory = "/data/user/khughes/ARA5_cal_data/"
 
-    if(os.path.isfile("data/SavedCalibData/time_"+str(run)+"_"+str(channel)+str(kPed)+str(kTime)+str(kVolt)+".npy")):
-        all_t = np.load("data/SavedCalibData/time_"+str(run)+"_"+str(channel)+str(kPed)+str(kTime)+str(kVolt)+".npy")
-        all_volts = np.load("data/SavedCalibData/volts_"+str(run)+"_"+str(channel)+str(kPed)+str(kTime)+str(kVolt)+".npy")
-        all_blocks = np.load("data/SavedCalibData/blocks_"+str(run)+"_"+str(channel)+str(kPed)+str(kTime)+str(kVolt)+".npy")
+    if(os.path.isfile("/data/user/khughes/ARA5_cal_data/SavedCalibData/time_"+str(run)+"_"+str(channel)+str(kPed)+str(kTime)+str(kVolt)+".npy")):
+        all_t = np.load("/data/user/khughes/ARA5_cal_data/SavedCalibData/time_"+str(run)+"_"+str(channel)+str(kPed)+str(kTime)+str(kVolt)+".npy")
+        all_volts = np.load("/data/user/khughes/ARA5_cal_data/SavedCalibData/volts_"+str(run)+"_"+str(channel)+str(kPed)+str(kTime)+str(kVolt)+".npy")
+        all_blocks = np.load("/data/user/khughes/ARA5_cal_data/SavedCalibData/blocks_"+str(run)+"_"+str(channel)+str(kPed)+str(kTime)+str(kVolt)+".npy")
         return(all_t,all_volts,all_blocks)
     try:
         ped_values = np.loadtxt(pedFile)
@@ -314,7 +316,7 @@ def LoadSineWaveData(station,run,pedFile,channel,kPed,kTime,kVolt):
     rawEvent = ROOT.RawAtriStationEvent()
     eventTree.SetBranchAddress("event",ROOT.AddressOf(rawEvent))
     totalEvents = eventTree.GetEntries()
-    length = 960
+    length = 896
     all_volts = np.zeros([totalEvents,length])
     all_t=np.zeros([totalEvents,length])
     all_blocks=np.zeros([totalEvents])+701
@@ -332,8 +334,8 @@ def LoadSineWaveData(station,run,pedFile,channel,kPed,kTime,kVolt):
         t_buff = gr1.GetX()
         v_buff = gr1.GetY()
         n = gr1.GetN()
-        t_buff.SetSize(n)
-        v_buff.SetSize(n)
+        #t_buff.SetSize(n)
+        #v_buff.SetSize(n)
         t = np.frombuffer(t_buff,dtype=float,count=-1)
         v = np.frombuffer(v_buff,dtype=float,count=-1)
 
@@ -342,6 +344,8 @@ def LoadSineWaveData(station,run,pedFile,channel,kPed,kTime,kVolt):
         #tt,vv,bblock_number = Calibrator(station,t,v,block_number,str(channel),length,ped_values,kPed,0,0)
         #plt.scatter(tt-20,vv,color='red')
         t,v,block_number = Calibrator(station,t,v,block_number,str(channel),length,ped_values,kPed,kTime,kVolt)
+        #print(t)
+        #print(v)
         t=t-20
         #print(block_number)
         #print(t[0])
@@ -357,10 +361,10 @@ def LoadSineWaveData(station,run,pedFile,channel,kPed,kTime,kVolt):
         all_volts[i,:]=v
         all_t[i,:]=t
         all_blocks[i]=block_number
-
+        #print('check 0')
         gr1.Delete()
-        usefulEvent.Delete()
-
+        #usefulEvent.Delete()
+        #print('check 1')
 
     all_t = all_t[~np.all(all_volts==0,axis=1)]
     all_volts = all_volts[~np.all(all_volts == 0, axis=1)]
@@ -384,8 +388,8 @@ def LoadARACalPulsers(run,channel,kCalPulser,kPed,kTime,kVolt):
     #run = '3416'
     date_list=np.load('data/date_list.npy',allow_pickle='TRUE').item()
     #print(date_list)
-    t_file = "data/SavedCalibData/time_"+str(run)+"_"+str(channel)+str(kCalPulser)+str(kPed)+str(kTime)+str(kVolt)+".npy"
-    v_file = "data/SavedCalibData/volts_"+str(run)+"_"+str(channel)+str(kCalPulser)+str(kPed)+str(kTime)+str(kVolt)+".npy"
+    t_file = "/data/user/khughes/ARA5_cal_data/SavedCalibData/time_"+str(run)+"_"+str(channel)+str(kCalPulser)+str(kPed)+str(kTime)+str(kVolt)+".npy"
+    v_file = "/data/user/khughes/ARA5_cal_data/SavedCalibData/volts_"+str(run)+"_"+str(channel)+str(kCalPulser)+str(kPed)+str(kTime)+str(kVolt)+".npy"
     #b_file = "SavedCalibData/blocks_"+str(run)+"_"+str(channel)+str(kCalPulser)+str(kPed)+str(kTime)+str(kVolt)+".npy"
     if(os.path.isfile(t_file) and os.path.isfile(v_file)):
         t=np.load(t_file)
@@ -414,8 +418,9 @@ def LoadARACalPulsers(run,channel,kCalPulser,kPed,kTime,kVolt):
 
         print('here is t_univ:', t_univ)
         for i in range(0,totalEvents):#totalEvents):
-
+            #print(i)
             eventTree.GetEntry(i)
+            #print('success')
             if(rawEvent.isCalpulserEvent()==0 and kCalPulser==1): #if not a cal pulser and we want cal pulsers, go to next event
                 continue
             if(rawEvent.isCalpulserEvent()==1 and kCalPulser==0):
@@ -427,12 +432,13 @@ def LoadARACalPulsers(run,channel,kCalPulser,kPed,kTime,kVolt):
             t_buff = gr1.GetX()
             v_buff = gr1.GetY()
             n = gr1.GetN()
-            t_buff.SetSize(n)
-            v_buff.SetSize(n)
+            #t_buff.SetSize(n)
+            #v_buff.SetSize(n)
             t = np.frombuffer(t_buff,dtype=float,count=-1)
             v = np.frombuffer(v_buff,dtype=float,count=-1)
-
-
+            #print(t,v)
+            #print(len(t),len(v))
+            plt.plot(t,v)
             block_number = rawEvent.blockVec[0].getBlock()
 
             #Remove first block which is corrupted
@@ -440,12 +446,15 @@ def LoadARACalPulsers(run,channel,kCalPulser,kPed,kTime,kVolt):
 
 
             t,v,block_number = Calibrator(station,t,v,block_number,str(channel),length,ped_values,kPed,kTime,kVolt)
+            plt.plot(t,v)
+            plt.savefig('test_'+str(i)+'.pdf')
+            plt.clf()
             #print(t[0])
             #print(t[0])
             if(int(channel)==24):
                 t=t-0.3125
 
-
+            #print('test',t,v)
             t,v= RemoveBackwardsSamples(t,v)
             f = Akima1DInterpolator(t,v)
             v = f(t_univ)
@@ -453,9 +462,10 @@ def LoadARACalPulsers(run,channel,kCalPulser,kPed,kTime,kVolt):
             all_volts[i,:]=v
             #all_t[i,:]=t
             all_blocks[i]=block_number
-
+            #print('test2')
             gr1.Delete()
-            usefulEvent.Delete()
+            #usefulEvent.Delete()
+            #print('test3')
             #print(v)
             #print(t_univ)
             #plt.plot(t_univ,v)
@@ -515,8 +525,8 @@ def LoadFilteredData(station,run,date,year,channel,length,kCalPulser,kPed,kTime,
             t_buff = gr1.GetX()
             v_buff = gr1.GetY()
             n = gr1.GetN()
-            t_buff.SetSize(n)
-            v_buff.SetSize(n)
+            #t_buff.SetSize(n)
+            #v_buff.SetSize(n)
             t = np.frombuffer(t_buff,dtype=float,count=-1)
             v = np.frombuffer(v_buff,dtype=float,count=-1)
 
@@ -727,7 +737,7 @@ def LoadSpiceData(channel,kPed,kTime,kVolt):
 def main():
     #TestFunction("5","5337","0529","2019",0,1,1,1,1,0,0)#run,date,year,channel)
     #LoadDataFromWeb("5","5337","0529","2019",0,1,1,1,1,0,0)#run,date,year,channel)
-    print('nothing to see here')
+    print('hello! nothing to see here.')
 
 
 if __name__=="__main__":

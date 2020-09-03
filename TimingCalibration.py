@@ -87,7 +87,7 @@ def SineFit(t,v,freq):
     return(params)
 
 
-def HistPlotter2D(sample,jitter):
+def HistPlotter2D(sample,jitter,loop,channel):
     sample_even=[]
     jitter_even = []
     sample_odd=[]
@@ -111,16 +111,21 @@ def HistPlotter2D(sample,jitter):
     plt.figure(4,facecolor='w')
     plt.hist2d(sample_even,jitter_even,bins=(128,128),cmap=plt.cm.jet,range=np.array([(0.0,128.0),(-1.0,1.0)]))
     plt.title('Even Samples')
+    plt.tight_layout()
+    plt.savefig('EvenSamples_Chan'+str(channel)+'_'+str(loop)+'.pdf')
 
     plt.figure(5,facecolor='w')
     plt.hist2d(sample_odd,jitter_odd,bins=(128,128),cmap=plt.cm.jet,range=np.array([(0.0,128.0),(-1.0,1.0)]))
     plt.title('Odd Samples')
+    plt.tight_layout()
+    plt.savefig('OddSamples_Chan'+str(channel)+'_'+str(loop)+'.pdf')
 
     plt.figure(3)
     plt.hist(jitter_1d,bins=25)
     plt.xlabel('Jitter (ns)')
     plt.xlim([-1.0,1.0])
-
+    plt.tight_layout()
+    plt.savefig('Jitter_1d_Chan'+str(channel)+'_'+str(loop)+'.pdf')
 
     plt.show()
     return()
@@ -255,7 +260,7 @@ def histogram(vals,string):
         counter = counter +1
     plt.show()
 
-def SinePlotter(t,v,params,sample):
+def SinePlotter(t,v,params,sample,loop,channel):
     plt.figure(10)
     plt.scatter(t,v[sample,:],label='Data')
     #print(t)
@@ -266,7 +271,9 @@ def SinePlotter(t,v,params,sample):
     #plt.legend()
     plt.xlabel('Time (ns)')
     plt.ylabel('ADC')
-    plt.show()
+    #plt.show()
+    plt.tight_layout()
+    plt.savefig('plots/SineWaveFit_Chan'+str(channel)+'_'+str(loop)+'.pdf')
 
 def SlopeFinder(t,v,sample):
     if sample==0:
@@ -279,7 +286,7 @@ def SlopeFinder(t,v,sample):
 def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
     wf_len = 896
     
-    pedFile = '/home/kahughes/PA_Analysis/data/pedFiles/pedFile_'+str(rootfile)+'.dat'
+    pedFile = 'data/pedFiles/pedFile_'+str(rootfile)+'.dat'
 
     print(pedFile)
 
@@ -336,18 +343,20 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
         #plt.plot(t_up,SineFunc(t_up,odd_params[i,0],odd_params[i,1],odd_params[i,2]))
         #plt.show()
 
-        """
-        if(l>-1):
-            plt.hist(odd_params[:,0]*1000,bins=25)
-            #plt.grid()
-            plt.axvline(np.mean(odd_params[:,0])*1000,color='red',label='Mean')
-            plt.axvline(218.0, color='black',label='Input Frequency')
-            plt.xlabel('Best Fit Frequency (MHz)')
-            plt.legend()
-            plt.show()
         
-            SinePlotter(t_cal_full,volt,odd_params,4)
-        """
+        #if(l>-1):
+        plt.hist(odd_params[:,0]*1000,bins=25)
+        plt.tight_layout()
+        #plt.grid()
+        plt.axvline(np.mean(odd_params[:,0])*1000,color='red',label='Mean')
+        plt.axvline(218.0, color='black',label='Input Frequency')
+        plt.xlabel('Best Fit Frequency (MHz)')
+        plt.legend()
+        #plt.show()
+        plt.savefig('plots/Frequency_hist_Chan'+str(channel)+'_'+str(l)+'.pdf')
+        
+        SinePlotter(t_cal_full,volt,odd_params,4,l,channel)
+        
         freq_no_outliers = reject_outliers(np.asarray(odd_params[:,0]))
         mean_freq = np.mean(freq_no_outliers)
         print('mean frequency is', mean_freq)
@@ -386,6 +395,8 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
         print('here is the slow part')
         for k in range(0,896):
             counter = 0
+            if(k%50==0):
+                print(k/896*100,'percent done.')
             for i in range(0,num_blocks):
                 if(np.abs(volt[i,k])<cutval and (freq-odd_params[i,0])<0.002):# and np.abs(odd_params[i,2]>200)):
                     try:
@@ -435,7 +446,7 @@ def CorrectTimingSample(rootfile,channel,freq,t_cal,station):
             np.save('data/ARA'+str(station)+'_cal_files/samples_'+rootfile+'_'+channel+'first.npy',np.asarray(sample_array))
             np.save('data/ARA'+str(station)+'_cal_files/jitter_'+rootfile+'_'+channel+'first.npy',np.asarray(jitter_array))
         #if(l>-1):
-    HistPlotter2D(sample_array,jitter_array)
+        HistPlotter2D(sample_array,jitter_array,l,channel)
     #print('final t_cal is', t_cal_full)
     np.save('data/ARA'+str(station)+'_cal_files/t_cal_'+channel+'.npy',t_cal_full)
     np.save('data/ARA'+str(station)+'_cal_files/samples_'+channel+'final.npy',np.asarray(sample_array))

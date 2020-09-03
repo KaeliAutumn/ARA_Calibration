@@ -54,7 +54,7 @@ def SineFit(t,v,freq,A):
 def Cubic(a,p0,p1,p2,p3):
     return(p0*a**3+p1*a**2+p2*a+p3)
 
-def plot_voltage(t,adc,p_pos,p_neg,block_num,freq,A):
+def plot_voltage(t,adc,p_pos,p_neg,block_num,freq,A,channel):
 
 
     start_block = int(block_num)
@@ -95,9 +95,12 @@ def plot_voltage(t,adc,p_pos,p_neg,block_num,freq,A):
     plt.grid()
     plt.legend()
     #print(params[0],params[1],params[2])
-    plt.show()
+    plt.tight_layout()
+    plt.savefig('plots/voltage_plot_Chan_'+str(channel)+'_block'+str(int(block_num))+'.pdf')
+    #plt.show()
+    plt.clf()
 
-def plot_cubic(this_ADC,this_volt,mean_ADC,mean_volt,p_pos,p_neg,i,meanval):
+def plot_cubic(this_ADC,this_volt,mean_ADC,mean_volt,p_pos,p_neg,i,meanval,channel):
     colors =["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
 
     deg = len(p_pos[i,:])-1
@@ -130,7 +133,10 @@ def plot_cubic(this_ADC,this_volt,mean_ADC,mean_volt,p_pos,p_neg,i,meanval):
     plt.xlabel('ADC Counts')
     plt.ylabel('Voltage (mV)')
     plt.grid()
-    plt.show()
+    plt.tight_layout()
+    plt.savefig('plots/sample_ADC_v_'+str(channel)+'_'+str(i)+'.pdf')
+    #plt.show()
+    plt.clf()
 
 
 def CorrectVoltage(station,files, channel,freq):
@@ -172,27 +178,13 @@ def CorrectVoltage(station,files, channel,freq):
     #array to hold fit parameters for each event
     odd_params=np.zeros([total_events,3])
 
-    bad_params = np.zeros([total_events,3])
+
     #Loop through all events and fit data to a sine wave:
     for i in range(0,total_events):
         if(i%100==0):
             print(i)
 
         odd_params[i,:] = SineFit(all_times[i,odds],ADC[i,odds],freq,A)
-        bad_params[i,:] = SineFit(times[i,odds],ADC_raw[i,odds],freq,A)
-
-        plt.figure(0)
-        
-        #plt.scatter(times[i,odds],ADC_raw[i,odds],color='purple',alpha=0.5,label="Uncalibrated")
-        plt.scatter(all_times[i,odds],ADC[i,odds],label="Calibrated Time")
-        tup = np.linspace(all_times[i,0],all_times[i,-1],len(all_times[i,odds])*20)
-        #plt.plot(tup,SineFunc(tup,bad_params[i,0],bad_params[i,1],bad_params[i,2]),color='purple',alpha=0.5)
-        plt.plot(tup,SineFunc(tup,odd_params[i,0],odd_params[i,1],odd_params[i,2]))
-        plt.xlim([54,84.5])
-        plt.grid()
-        plt.legend()
-        plt.ylim([-550,850])
-        plt.show()
 
     t_cal = all_times[0]
 
@@ -350,9 +342,9 @@ def CorrectVoltage(station,files, channel,freq):
         chi2_p[i]=np.sum(np.divide((meas_volt[mean_ADC>=0]-pred_v)**2,var_volt[mean_ADC>=0]))/(len(var_volt[mean_ADC>=0]))
 
 
-        #This commented block will make plots for selected samples, plot a distribution of chi2 values so far, and plot an example corrected waveform.
+        #This next part of the code will make plots for selected samples, plot a distribution of chi2 values so far, and plot an example corrected waveform.
 
-        """
+        
         if((i%960==0 and i>0)):
             print(i)
             print('chi2 is ', chi2_p[i])
@@ -365,16 +357,19 @@ def CorrectVoltage(station,files, channel,freq):
             plt.ylabel('Counts')
             plt.legend()
             plt.title('Chi2 Distributions')
+            plt.tight_layout()
+            plt.savefig('plots/Chi2_distributions_'+str(channel)+'.pdf')
             plt.show()
+            plt.clf()
 
-            plot_cubic(this_ADC,this_volt,mean_ADC,meas_volt,p_pos,p_neg,i,0.0)
-            print('tcal is ', t_cal,t_cal[1]-t_cal[0],len(t_cal))
+            plot_cubic(this_ADC,this_volt,mean_ADC,meas_volt,p_pos,p_neg,i,0.0,channel)
+            #print('tcal is ', t_cal,t_cal[1]-t_cal[0],len(t_cal))
             my_ind = np.where(block_nums==counts)
-            print('this index is', my_ind)
+            #print('this index is', my_ind)
             if(my_ind[0][0]!=None):
-                plot_voltage(t_cal,ADC[my_ind[0][0],:],p_pos,p_neg,block_nums[my_ind[0][0]],freq,A)
+                plot_voltage(t_cal,ADC[my_ind[0][0],:],p_pos,p_neg,block_nums[my_ind[0][0]],freq,A,channel)
             counts = counts +14
-        """
+        
 
 
 

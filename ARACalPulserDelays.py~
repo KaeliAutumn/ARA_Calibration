@@ -185,7 +185,7 @@ def main():
         #plt.axvline(this_t[np.argmax(Avs[i])],color='red',lw=3.0)
         #hilbert_env=hilbert(Avs[i])
         #plt.plot(ts[i],np.abs(hilbert_env))
-    plt.savefig('plots/AverageCalPulserWFs.pdf')
+
     plt.show()
     Avs = {0:Av0,1:Av1,8:Av8,9:Av9,24:Av24,25:Av25,16:Av16,17:Av17}
 
@@ -280,9 +280,7 @@ def main():
     print(error_dict)
 
     np.save('data/ARA_CalPulser_delaydict.npy',ARA_dict)
-    plt.figure(1)
-    plt.tight_layout()
-    plt.savefig('plots/CalPulser_Delays.pdf')
+
     plt.show()
 
 
